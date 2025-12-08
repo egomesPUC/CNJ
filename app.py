@@ -12,7 +12,7 @@ st.set_page_config(
 # ==========================
 @st.cache_data
 def load_data(path: str) -> pd.DataFrame:
-    df = pd.read_excel(path)
+    df = pd.read_csv(path,sep=";")
 
     # Garante que os códigos sejam numéricos (quando possível)
     for col in ["SEQ_MUNICIPIO3", "SEQ_MOTIVO_EXPEDICAO_ALVARA"]:
@@ -22,7 +22,7 @@ def load_data(path: str) -> pd.DataFrame:
     return df
 
 
-DATA_PATH = "BNMP_MORADOR_RUA.xlsx"  # ajuste o caminho se necessário
+DATA_PATH = "BNMP_MORADOR_RUA.CSV"  # ajuste o caminho se necessário
 df = load_data(DATA_PATH)
 
 # ==========================
