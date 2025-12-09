@@ -6,7 +6,7 @@ st.set_page_config(
     page_title="Dashboard - Peças de Pessoas em Situação de Rua - TEMPORARIAMENTE FORA DO AR!!",
     layout="wide"
 )
-exit
+'''
 # ==========================
 # Carregamento de dados
 # ==========================
@@ -483,3 +483,4 @@ with tab3:
 
             st.markdown("### Tabela de apoio (município x quantidade)")
             st.dataframe(muni_counts, use_container_width=True)
+'''
