@@ -181,7 +181,7 @@ if selected_motivos and "SEQ_MOTIVO_EXPEDICAO_ALVARA" in filtered_df.columns:
 # ==========================
 # Layout principal - Abas
 # ==========================
-st.title("Dashboard - Peças de Pessoas em Situação de Rua")
+st.title("Dashboard - Peças Jurídicas de Pessoas em Situação de Rua")
 
 tab1, tab2, tab3 = st.tabs(
     [
