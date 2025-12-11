@@ -105,8 +105,7 @@ def main():
             row["SEQ_MUNICIPIO3"]: row["NOM_MUNICIPIO"]
             for _, row in muni_df_dict.iterrows()
         }
-        print(municipio_dict)
-        # Códigos de município distintos (incluindo os que não têm nome)
+       # Códigos de município distintos (incluindo os que não têm nome)
         muni_codes = (
             df["SEQ_MUNICIPIO3"]
             .drop_duplicates()
