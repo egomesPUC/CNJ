@@ -1,485 +1,57 @@
+# login.py
 import streamlit as st
-import pandas as pd
-import altair as alt
+import app_principal  # importa o arquivo da app principal
+import hashlib
 
-st.set_page_config(
-    page_title="Dashboard - Peças de Pessoas em Situação de Rua - TEMPORARIAMENTE FORA DO AR!!",
-    layout="wide"
-)
-
-# ==========================
-# Carregamento de dados
-# ==========================
-@st.cache_data
-def load_data(path: str) -> pd.DataFrame:
-    df = pd.read_csv(path,sep=";")
-
-    # Garante que os códigos sejam numéricos (quando possível)
-    for col in ["SEQ_MUNICIPIO3", "SEQ_MOTIVO_EXPEDICAO_ALVARA"]:
-        if col in df.columns:
-            df[col] = pd.to_numeric(df[col], errors="coerce").astype("Int64")
-
-    return df
-
-
-DATA_PATH = "BNMP_MORADOR_RUA.CSV"  # ajuste o caminho se necessário
-df = load_data(DATA_PATH)
-
-# ==========================
-# Tabela de motivos do alvará (TABELA1)
-# ==========================
-MOTIVO_MAP = {
-    1: "Revogação de preventiva",
-    2: "Liberdade provisória com medidas cautelares",
-    3: "Liberdade provisória",
-    4: "Progressão de regime",
-    5: "Concessão de regime semiaberto harmonizado",
-    7: "Relaxamento de prisão",
-    8: "Revogação da prisão temporária",
-    9: "Extinção de punibilidade",
-    10: "Extinção da pena",
-    11: "Arquivamento do inquérito",
-    12: "Absolvição",
-    13: "Trancamento da ação penal",
-    14: "Quitação de débito alimentar",
-    15: "Revogação de deportação/extradição/expulsão",
-    16: "Livramento condicional",
-    17: "Arquivamento de ação penal",
-    18: "Outras medidas cautelares",
-    19: "Relaxamento de Prisão de Pessoa Presa em Lugar de Outra",
-    20: "Regime Aberto Monitoramento Eletrônico",
-    21: "Prisão domiciliar",
-    22: "Liberdade Provisória com fiança",
-    23: "Liberdade Provisória sem fiança",
-    24: "Habeas Corpus",
-    25: "Recolhimento da fiança arbitrada pela autoridade policial",
-    26: "Término da Prisão Temporária",
-    27: "Rejeição da denúncia ou queixa",
-    28: "Impronúncia",
-    29: "Condenação em regime aberto",
-    30: "Indulto humanitário",
-    31: "Regime Especial de semiliberdade aplicada à pessoa indígena",
-    99: "Revogação Decorrente de Erro Material no Mandado",
+# DICIONÁRIO DE USUÁRIOS (exemplo simples)
+# ⚠ Em produção, o ideal é NÃO deixar isso hardcoded no código.
+USERS = {
+    "835d6dc88b708bc646d6db82c853ef4182fabbd4a8de59c213f2b5ab3ae7d9be": "218d033a33e37ad0f4208cda5c28143aeac99bb9e234eda3c06b720134cc24c2",
+    "2838901e9c6354dcbef7a8fd5134633465c67c1c353a24f2c84c65ee61f8fc10": "d0b26502e9ae93f461ee345bf11a405dcbcf82d066d5c93d49f67f91fa68e98b",
 }
+def SHA216(input_string):
+     # Encode the string to bytes
+    encoded_string = input_string.encode('utf-8')
 
-if "SEQ_MOTIVO_EXPEDICAO_ALVARA" in df.columns:
-    df["DSC_MOTIVO_EXPEDICAO_ALVARA"] = (
-        df["SEQ_MOTIVO_EXPEDICAO_ALVARA"]
-        .map(MOTIVO_MAP)
-        .fillna("Não informado / Outro")
-    )
+    # Create a SHA-256 hash object and compute the hash
+    sha256_hash_object = hashlib.sha256(encoded_string)
 
-# ==========================
-# Sidebar - Filtros (válidos para TODAS as abas)
-# ==========================
-st.sidebar.header("Filtros")
+    # Get the hexadecimal representation of the hash
+    hex_digest = sha256_hash_object.hexdigest()
+    return hex_digest
 
-filtered_df = df.copy()
+def login_screen():
+    st.title("Login")
 
-# Funções auxiliares para formatar as opções do filtro
-def format_municipio_opt(x, municipio_dict):
-    if isinstance(x, str) and x == "SEM_MUNICIPIO":
-        return "SEM MUNICÍPIO INFORMADO"
-    x=int(x)
-    nome = municipio_dict.get(x, "")
-    print(f"{x} - {nome}")
-    return f"{x} - {nome}"
+    # Campos de login
+    usuario=st.text_input("Usuário")
+    username = SHA216(usuario)
+    password = SHA216(st.text_input("Senha", type="password"))
 
-def format_motivo_opt(x):
-    if isinstance(x, str) and x == "SEM_MOTIVO":
-        return "SEM MOTIVO INFORMADO"
-    # x aqui é código numérico
-    cod = int(x)
-    desc = MOTIVO_MAP.get(cod, "Não informado / Outro")
-    return f"{cod} - {desc}"
+    # Mensagem de erro (se já tiver tentado e falhado)
+    if st.session_state.get("login_failed"):
+        st.error("Usuário ou senha inválidos.")
 
-# --- Filtro de Município (multiselect) ---
-if "SEQ_MUNICIPIO3" in df.columns and "NOM_MUNICIPIO" in df.columns:
-    # Dicionário código -> nome (apenas onde temos código e nome)
-    muni_df_dict = (
-        df[["SEQ_MUNICIPIO3", "NOM_MUNICIPIO"]]
-        .dropna(subset=["SEQ_MUNICIPIO3", "NOM_MUNICIPIO"])
-        .drop_duplicates()
-    )
-    municipio_dict = {
-        row["SEQ_MUNICIPIO3"]: row["NOM_MUNICIPIO"]
-        for _, row in muni_df_dict.iterrows()
-    }
-    print(municipio_dict)
-    # Códigos de município distintos (incluindo os que não têm nome)
-    muni_codes = (
-        df["SEQ_MUNICIPIO3"]
-        .drop_duplicates()
-        .dropna()
-        .sort_values()
-        .tolist()
-    )
-    
-    has_null_muni = df["SEQ_MUNICIPIO3"].isna().any()
+    # Botão de login
+    if st.button("Entrar"):
+        if username in USERS and password == USERS[username]:
+            st.session_state.logged_in = True
+            st.session_state.username = usuario
+            st.session_state.login_failed = False
+            #st.experimental_rerun()
+        else:
+            st.session_state.logged_in = False
+            st.session_state.login_failed = True
 
-    municipio_options = muni_codes.copy()
-    if has_null_muni:
-        municipio_options.append("SEM_MUNICIPIO")
-
-    
-    
-    selected_municipios = st.sidebar.multiselect(
-        "Município",
-        options=municipio_options,
-        default=municipio_options,  # todos selecionados por padrão (inclusive SEM_MUNICIPIO se existir)
-        format_func=lambda x: format_municipio_opt(x, municipio_dict),
-    )
-
-    if selected_municipios:
-        mask_muni = pd.Series(False, index=filtered_df.index)
-
-        # valores numéricos (códigos)
-        muni_numeric = [m for m in selected_municipios if not isinstance(m, str)]
-        if muni_numeric:
-            mask_muni |= filtered_df["SEQ_MUNICIPIO3"].isin(muni_numeric)
-
-        # opção "SEM_MUNICIPIO" -> inclui registros sem código
-        if "SEM_MUNICIPIO" in selected_municipios:
-            mask_muni |= filtered_df["SEQ_MUNICIPIO3"].isna()
-
-        filtered_df = filtered_df[mask_muni]
-
-# --- Filtro de Motivo do Alvará (multiselect) ---
-motivo_options = []
-if "SEQ_MOTIVO_EXPEDICAO_ALVARA" in df.columns:
-    motivos_presentes = (
-        df["SEQ_MOTIVO_EXPEDICAO_ALVARA"]
-        .drop_duplicates()
-        .dropna()
-        .sort_values()
-        .tolist()
-    )
-    motivo_options = motivos_presentes.copy()
-    has_null_motivo = df["SEQ_MOTIVO_EXPEDICAO_ALVARA"].isna().any()
-    if has_null_motivo:
-        motivo_options.append("SEM_MOTIVO")
-
-selected_motivos = st.sidebar.multiselect(
-    "Motivo do Alvará",
-    options=motivo_options,
-    default=motivo_options,  # todos selecionados por padrão (incluindo SEM_MOTIVO se existir)
-    format_func=lambda x: format_motivo_opt(x),
-)
-
-if selected_motivos and "SEQ_MOTIVO_EXPEDICAO_ALVARA" in filtered_df.columns:
-    mask_motivo = pd.Series(False, index=filtered_df.index)
-
-    motivo_numeric = [m for m in selected_motivos if not isinstance(m, str)]
-    if motivo_numeric:
-        mask_motivo |= filtered_df["SEQ_MOTIVO_EXPEDICAO_ALVARA"].isin(motivo_numeric)
-
-    if "SEM_MOTIVO" in selected_motivos:
-        mask_motivo |= filtered_df["SEQ_MOTIVO_EXPEDICAO_ALVARA"].isna()
-
-    filtered_df = filtered_df[mask_motivo]
-
-# ==========================
-# Layout principal - Abas
-# ==========================
-st.title("Dashboard - Peças Jurídicas de Pessoas em Situação de Rua")
-
-tab1, tab2, tab3 = st.tabs(
-    [
-        "ABA 1 - Visão Geral das Peças",
-        "ABA 2 - Peças por Motivo do Alvará",
-        "ABA 3 - Peças por Município",
-    ]
-)
-
-# --------------------------
-# ABA 1
-# --------------------------
-with tab1:
-    st.subheader("Peças de Pessoas Moradoras de Rua - Visão Geral")
-
-    if filtered_df.empty:
-        st.warning("Nenhum registro encontrado com os filtros selecionados.")
+def main():
+    # Verifica se já está logado
+    if not st.session_state.get("logged_in"):
+        login_screen()
+        # Impede que o resto do código rode enquanto não logar
+        st.stop()
     else:
-        max_registros = len(filtered_df)
-        qtd_registros = st.slider(
-            "Quantidade de registros a exibir na tabela e no gráfico:",
-            min_value=1,
-            max_value=max_registros,
-            value=max_registros,
-        )
+        st.sidebar.success(f"Logado como {st.session_state.username}")
+        app_principal.main()
 
-        df_exibicao = filtered_df.head(qtd_registros)
-
-        st.markdown("### Tabela de dados (amostra filtrada)")
-        st.dataframe(df_exibicao, use_container_width=True)
-
-        # Cálculo das quantidades para o gráfico de barras
-        if "SEQ_PECA" in df_exibicao.columns:
-            total_pecas = df_exibicao["SEQ_PECA"].count()
-        else:
-            total_pecas = len(df_exibicao)
-
-        if "SEQ_ALVARA_SOLTURA" in df_exibicao.columns:
-            seq_alvara = df_exibicao["SEQ_ALVARA_SOLTURA"]
-            sem_alvara_mask = seq_alvara.isna() | (
-                seq_alvara.astype(str).str.strip() == ""
-            )
-            qtd_sem_alvara = int(sem_alvara_mask.sum())
-            qtd_com_alvara = int(len(df_exibicao) - qtd_sem_alvara)
-        else:
-            qtd_sem_alvara = 0
-            qtd_com_alvara = 0
-
-        # Métricas principais
-        st.markdown("### Métricas principais (considerando os registros exibidos)")
-
-        col1, col2, col3 = st.columns(3)
-        col1.metric("Total de peças", int(total_pecas))
-        col2.metric("Peças **sem** alvará de soltura", int(qtd_sem_alvara))
-        col3.metric("Peças **com** alvará de soltura", int(qtd_com_alvara))
-
-        # Métricas adicionais
-        municipios_distintos = (
-            df_exibicao["SEQ_MUNICIPIO3"].nunique()
-            if "SEQ_MUNICIPIO3" in df_exibicao.columns
-            else 0
-        )
-        motivos_distintos = (
-            df_exibicao["SEQ_MOTIVO_EXPEDICAO_ALVARA"].nunique()
-            if "SEQ_MOTIVO_EXPEDICAO_ALVARA" in df_exibicao.columns
-            else 0
-        )
-        pct_com_alvara = (
-            round(qtd_com_alvara * 100 / total_pecas, 1)
-            if total_pecas > 0
-            else 0.0
-        )
-        pct_sem_alvara = (
-            round(qtd_sem_alvara * 100 / total_pecas, 1)
-            if total_pecas > 0
-            else 0.0
-        )
-
-        st.markdown("### Métricas adicionais")
-        c4, c5, c6 = st.columns(3)
-        c4.metric("Municípios distintos (na amostra)", int(municipios_distintos))
-        c5.metric("Motivos distintos de alvará (na amostra)", int(motivos_distintos))
-        c6.metric(
-            "% com alvará / sem alvará",
-            f"{pct_com_alvara}% / {pct_sem_alvara}%",
-        )
-
-        # DataFrame para gráfico de barras
-        resumo_df = pd.DataFrame(
-            {
-                "Categoria": [
-                    "Total de peças",
-                    "Peças sem alvará de soltura",
-                    "Peças com alvará de soltura",
-                ],
-                "Quantidade": [total_pecas, qtd_sem_alvara, qtd_com_alvara],
-            }
-        )
-
-        st.markdown("### Gráfico de barras - Resumo de peças")
-        chart_resumo = (
-            alt.Chart(resumo_df)
-            .mark_bar()
-            .encode(
-                x=alt.X("Categoria:N", sort=None, title="Categoria"),
-                y=alt.Y("Quantidade:Q", title="Quantidade"),
-                tooltip=["Categoria", "Quantidade"],
-            )
-        )
-        st.altair_chart(chart_resumo, use_container_width=True)
-
-# --------------------------
-# ABA 2
-# --------------------------
-with tab2:
-    st.subheader("Peças de Pessoas Moradoras de Rua - Por Motivo do Alvará")
-
-    if filtered_df.empty:
-        st.warning("Nenhum registro encontrado com os filtros selecionados.")
-    else:
-        if "SEQ_MOTIVO_EXPEDICAO_ALVARA" not in filtered_df.columns:
-            st.error(
-                "Coluna 'SEQ_MOTIVO_EXPEDICAO_ALVARA' não encontrada no conjunto de dados."
-            )
-        else:
-            # Agrupa por motivo, contando quantidade de peças
-            if "SEQ_PECA" in filtered_df.columns:
-                motivo_counts = (
-                    filtered_df.groupby(
-                        [
-                            "SEQ_MOTIVO_EXPEDICAO_ALVARA",
-                            "DSC_MOTIVO_EXPEDICAO_ALVARA",
-                        ],
-                        dropna=False  # mantém também os sem motivo
-                    )
-                    .agg(qtd_pecas=("SEQ_PECA", "count"))
-                    .reset_index()
-                )
-            else:
-                motivo_counts = (
-                    filtered_df.groupby(
-                        [
-                            "SEQ_MOTIVO_EXPEDICAO_ALVARA",
-                            "DSC_MOTIVO_EXPEDICAO_ALVARA",
-                        ],
-                        dropna=False
-                    )
-                    .size()
-                    .reset_index(name="qtd_pecas")
-                )
-
-            # NÃO remover NaN aqui; queremos mostrar também o "Não informado / Outro"
-            motivo_counts = motivo_counts.sort_values(
-                "qtd_pecas", ascending=False
-            )
-
-            # Métricas para a aba 2
-            total_pecas_tab2 = int(motivo_counts["qtd_pecas"].sum())
-            num_motivos_tab2 = int(len(motivo_counts))
-
-            col_a, col_b, col_c = st.columns(3)
-            col_a.metric("Total de peças (pós-filtro)", total_pecas_tab2)
-            col_b.metric("Nº de motivos diferentes", num_motivos_tab2)
-
-            if not motivo_counts.empty:
-                top_row = motivo_counts.iloc[0]
-                top_cod = top_row["SEQ_MOTIVO_EXPEDICAO_ALVARA"]
-                top_desc = top_row["DSC_MOTIVO_EXPEDICAO_ALVARA"]
-                top_qtd = int(top_row["qtd_pecas"])
-
-                # se top_cod é nulo, tratamos como "Sem motivo"
-                if pd.isna(top_cod):
-                    label_top = "SEM MOTIVO INFORMADO"
-                else:
-                    label_top = f"{int(top_cod)} - {top_desc}"
-
-                col_c.metric(
-                    "Motivo mais frequente",
-                    label_top,
-                    f"{top_qtd} peças",
-                )
-
-            st.markdown("### Quantidade de peças por motivo de expedição do alvará")
-
-            chart_motivo = (
-                alt.Chart(motivo_counts)
-                .mark_bar()
-                .encode(
-                    x=alt.X(
-                        "DSC_MOTIVO_EXPEDICAO_ALVARA:N",
-                        sort="-y",
-                        title="Motivo de expedição do alvará",
-                    ),
-                    y=alt.Y("qtd_pecas:Q", title="Quantidade de peças"),
-                    tooltip=[
-                        alt.Tooltip(
-                            "SEQ_MOTIVO_EXPEDICAO_ALVARA:Q",
-                            title="Código do motivo",
-                        ),
-                        alt.Tooltip(
-                            "DSC_MOTIVO_EXPEDICAO_ALVARA:N", title="Motivo"
-                        ),
-                        alt.Tooltip("qtd_pecas:Q", title="Quantidade de peças"),
-                    ],
-                )
-                .properties(height=500)
-            )
-
-            st.altair_chart(chart_motivo, use_container_width=True)
-
-            st.markdown("### Tabela de apoio (motivo x quantidade)")
-            st.dataframe(motivo_counts, use_container_width=True)
-
-# --------------------------
-# ABA 3
-# --------------------------
-with tab3:
-    st.subheader("Peças de Pessoas Moradoras de Rua - Por Município")
-
-    if filtered_df.empty:
-        st.warning("Nenhum registro encontrado com os filtros selecionados.")
-    else:
-        if ("SEQ_MUNICIPIO3" not in filtered_df.columns) or (
-            "NOM_MUNICIPIO" not in filtered_df.columns
-        ):
-            st.error(
-                "Colunas 'SEQ_MUNICIPIO3' e/ou 'NOM_MUNICIPIO' não encontradas no conjunto de dados."
-            )
-        else:
-            # Para municípios sem nome, preenchermos "Sem município informado" para exibição
-            muni_work = filtered_df.copy()
-            muni_work["NOM_MUNICIPIO"] = muni_work["NOM_MUNICIPIO"].fillna(
-                "Sem município informado"
-            )
-
-            # Agrupa por município, contando quantidade de peças
-            group_cols = ["SEQ_MUNICIPIO3", "NOM_MUNICIPIO"]
-            if "SEQ_PECA" in muni_work.columns:
-                muni_counts = (
-                    muni_work.groupby(group_cols, dropna=False)
-                    .agg(qtd_pecas=("SEQ_PECA", "count"))
-                    .reset_index()
-                )
-            else:
-                muni_counts = (
-                    muni_work.groupby(group_cols, dropna=False)
-                    .size()
-                    .reset_index(name="qtd_pecas")
-                )
-
-            muni_counts = muni_counts.sort_values("qtd_pecas", ascending=False)
-
-            total_pecas_muni = int(muni_counts["qtd_pecas"].sum())
-            num_munis = int(len(muni_counts))
-
-            col_m1, col_m2, col_m3 = st.columns(3)
-            col_m1.metric("Total de peças (pós-filtro)", total_pecas_muni)
-            col_m2.metric("Nº de municípios (pós-filtro)", num_munis)
-
-            if not muni_counts.empty:
-                top_row = muni_counts.iloc[0]
-                top_nome = top_row["NOM_MUNICIPIO"]
-                top_cod = top_row["SEQ_MUNICIPIO3"]
-                top_qtd = int(top_row["qtd_pecas"])
-
-                if pd.isna(top_cod):
-                    label_muni = f"SEM MUNICÍPIO - {top_nome}"
-                else:
-                    label_muni = f"{int(top_cod)} - {top_nome}"
-
-                col_m3.metric(
-                    "Município com mais peças",
-                    label_muni,
-                    f"{top_qtd} peças",
-                )
-
-            st.markdown("### Quantidade de peças por município")
-
-            chart_muni = (
-                alt.Chart(muni_counts)
-                .mark_bar()
-                .encode(
-                    x=alt.X(
-                        "NOM_MUNICIPIO:N",
-                        sort="-y",
-                        title="Município",
-                    ),
-                    y=alt.Y("qtd_pecas:Q", title="Quantidade de peças"),
-                    tooltip=[
-                        alt.Tooltip("SEQ_MUNICIPIO3:Q", title="Código do Município"),
-                        alt.Tooltip("NOM_MUNICIPIO:N", title="Município"),
-                        alt.Tooltip("qtd_pecas:Q", title="Quantidade de peças"),
-                    ],
-                )
-                .properties(height=500)
-            )
-
-            st.altair_chart(chart_muni, use_container_width=True)
-
-            st.markdown("### Tabela de apoio (município x quantidade)")
-            st.dataframe(muni_counts, use_container_width=True)
+if __name__ == "__main__":
+    main()
