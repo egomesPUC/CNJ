@@ -62,7 +62,6 @@ def format_municipio_opt(x, municipio_dict):
         return "SEM MUNICÍPIO INFORMADO"
     x=int(x)
     nome = municipio_dict.get(x, "")
-    print(f"{x} - {nome}")
     return f"{x} - {nome}"
 
 def format_motivo_opt(x):
