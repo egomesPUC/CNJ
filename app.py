@@ -39,7 +39,7 @@ def login_screen():
             st.session_state.username = usuario
             st.session_state.login_failed = False
             #st.experimental_rerun()
-            st.rerun()
+            #st.rerun()
         else:
             st.session_state.logged_in = False
             st.session_state.login_failed = True
