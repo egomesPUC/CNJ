@@ -2,7 +2,10 @@
 import streamlit as st
 import app_principal  # importa o arquivo da app principal
 import hashlib
-
+st.set_page_config(
+    page_title="Dashboard - Peças de Pessoas em Situação de Rua",
+    layout="wide"
+)
 # DICIONÁRIO DE USUÁRIOS (exemplo simples)
 # ⚠ Em produção, o ideal é NÃO deixar isso hardcoded no código.
 USERS = {
