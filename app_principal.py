@@ -42,6 +42,35 @@ MOTIVO_MAP = {
         31: "Regime Especial de semiliberdade aplicada à pessoa indígena",
         99: "Revogação Decorrente de Erro Material no Mandado",
     }
+STATUS_MAP = {
+    2:"Procurado", 
+3:"Foragido", 
+4:"Morto", 
+5:"Em Liberdade", 
+7:"Preso Condenado em Execução Provisória", 
+8:"Preso Condenado em Execução Definitiva", 
+9:"Preso Provisório (inválido - não utilizar)", 
+10:"Internado Provisório", 
+11:"Internado em Execução Provisória", 
+12:"Internado em Execução Definitiva", 
+13:"Preso Civil", 
+14:"Em Monitoramento", 
+15:"Em Saída Temporária", 
+16:"Preso em Saída Temporária Autorizada para Estudo ou Trabalho", 
+17:"Evadido", 
+18:"Preso em Flagrante", 
+19:"Em Tratamento Ambulatorial", 
+20:"Em acompanhamento de medidas diversas da prisão", 
+21:"Em acompanhamento de medidas diversas da prisão em execução", 
+22:"Preso definitivo", 
+23:"Internado definitivo", 
+24:"Preso preventivo", 
+25:"Preso temporário", 
+26:"Aguardando soltura", 
+27:"Preso para deportação/extradição/expulsão", 
+28:"Deportado/extraditado/expulso", 
+29:"Procurado para condução coercitiva"
+}
 # ==========================
 # Carregamento de dados
 # ==========================
@@ -72,6 +101,107 @@ def format_motivo_opt(x):
     desc = MOTIVO_MAP.get(cod, "Não informado / Outro")
     return f"{cod} - {desc}"
 
+def format_status_opt(x):
+    if isinstance(x, str) and x == "SEM_STATUS":
+        return "SEM STATUS INFORMADO"
+    # x aqui é código numérico
+    cod = int(x)
+    desc = STATUS_MAP.get(cod, "Não informado / Outro")
+    return f"{cod} - {desc}"
+
+def gerarFiltroMunicipio(df):
+    # Dicionário código -> nome (apenas onde temos código e nome)
+    muni_df_dict = (
+            df[["SEQ_MUNICIPIO3", "NOM_MUNICIPIO"]]
+            .dropna(subset=["SEQ_MUNICIPIO3", "NOM_MUNICIPIO"])
+            .drop_duplicates()
+        )
+    municipio_dict = {
+            row["SEQ_MUNICIPIO3"]: row["NOM_MUNICIPIO"]
+            for _, row in muni_df_dict.iterrows()
+        }
+       # Códigos de município distintos (incluindo os que não têm nome)
+    muni_codes = (
+            df["SEQ_MUNICIPIO3"]
+            .drop_duplicates()
+            .dropna()
+            .sort_values()
+            .tolist()
+        )
+        
+    has_null_muni = df["SEQ_MUNICIPIO3"].isna().any()
+
+    municipio_options = muni_codes.copy()
+    if has_null_muni:
+        municipio_options.append("SEM_MUNICIPIO")
+
+    return municipio_dict,municipio_options
+
+def filtrarMunicipio(selected_municipios,filtered_df):
+    mask_muni = pd.Series(False, index=filtered_df.index)
+    # valores numéricos (códigos)
+    muni_numeric = [m for m in selected_municipios if not isinstance(m, str)]
+    if muni_numeric:
+        mask_muni |= filtered_df["SEQ_MUNICIPIO3"].isin(muni_numeric)
+        # opção "SEM_MUNICIPIO" -> inclui registros sem código
+        if "SEM_MUNICIPIO" in selected_municipios:
+            mask_muni |= filtered_df["SEQ_MUNICIPIO3"].isna()
+        filtered_df = filtered_df[mask_muni]
+    return filtered_df
+
+def gerarFiltroMotivo(df):
+    motivos_presentes = (
+            df["SEQ_MOTIVO_EXPEDICAO_ALVARA"]
+            .drop_duplicates()
+            .dropna()
+            .sort_values()
+            .tolist()
+        )
+    motivo_options = motivos_presentes.copy()
+    has_null_motivo = df["SEQ_MOTIVO_EXPEDICAO_ALVARA"].isna().any()
+    if has_null_motivo:
+        motivo_options.append("SEM_MOTIVO")
+    return motivos_presentes,motivo_options
+
+def filtrarMotivo(selected_motivos,filtered_df):
+    mask_motivo = pd.Series(False, index=filtered_df.index)
+    motivo_numeric = [m for m in selected_motivos if not isinstance(m, str)]
+    if motivo_numeric:
+        mask_motivo |= filtered_df["SEQ_MOTIVO_EXPEDICAO_ALVARA"].isin(motivo_numeric)
+
+    if "SEM_MOTIVO" in selected_motivos:
+        mask_motivo |= filtered_df["SEQ_MOTIVO_EXPEDICAO_ALVARA"].isna()
+    filtered_df = filtered_df[mask_motivo]
+    return filtered_df
+
+def gerarFiltroStatus(df):
+    status_presentes = (
+            df["SEQ_STATUS"]
+            .drop_duplicates()
+            .dropna()
+            .sort_values()
+            .tolist()
+        )
+    status_options = status_presentes.copy()
+    has_null_motivo = df["SEQ_STATUS"].isna().any()
+    if has_null_motivo:
+        status_options.append("SEM_STATUS")
+    return status_presentes,status_options
+
+def filtrarStatus(selected_status,filtered_df):
+    mask_status = pd.Series(False, index=filtered_df.index)
+    status_numeric = [m for m in selected_status if not isinstance(m, str)]
+    if status_numeric:
+        mask_status |= filtered_df["SEQ_STATUS"].isin(status_numeric)
+
+    if "SEM_STATUS" in selected_status:
+        mask_status |= filtered_df["SEQ_STATUS"].isna()
+    filtered_df = filtered_df[mask_status]
+    return filtered_df
+
+
+
+
 
 def main():
     DATA_PATH = "BNMP_MORADOR_RUA.CSV"  # ajuste o caminho se necessário
@@ -95,87 +225,43 @@ def main():
 
     # --- Filtro de Município (multiselect) ---
     if "SEQ_MUNICIPIO3" in df.columns and "NOM_MUNICIPIO" in df.columns:
-        # Dicionário código -> nome (apenas onde temos código e nome)
-        muni_df_dict = (
-            df[["SEQ_MUNICIPIO3", "NOM_MUNICIPIO"]]
-            .dropna(subset=["SEQ_MUNICIPIO3", "NOM_MUNICIPIO"])
-            .drop_duplicates()
-        )
-        municipio_dict = {
-            row["SEQ_MUNICIPIO3"]: row["NOM_MUNICIPIO"]
-            for _, row in muni_df_dict.iterrows()
-        }
-       # Códigos de município distintos (incluindo os que não têm nome)
-        muni_codes = (
-            df["SEQ_MUNICIPIO3"]
-            .drop_duplicates()
-            .dropna()
-            .sort_values()
-            .tolist()
-        )
-        
-        has_null_muni = df["SEQ_MUNICIPIO3"].isna().any()
-
-        municipio_options = muni_codes.copy()
-        if has_null_muni:
-            municipio_options.append("SEM_MUNICIPIO")
-
-        
-        
+               
+        municipio_dict,municipio_options=gerarFiltroMunicipio(df)
         selected_municipios = st.sidebar.multiselect(
             "Município",
             options=municipio_options,
             default=municipio_options,  # todos selecionados por padrão (inclusive SEM_MUNICIPIO se existir)
             format_func=lambda x: format_municipio_opt(x, municipio_dict),
         )
-
         if selected_municipios:
-            mask_muni = pd.Series(False, index=filtered_df.index)
-
-            # valores numéricos (códigos)
-            muni_numeric = [m for m in selected_municipios if not isinstance(m, str)]
-            if muni_numeric:
-                mask_muni |= filtered_df["SEQ_MUNICIPIO3"].isin(muni_numeric)
-
-            # opção "SEM_MUNICIPIO" -> inclui registros sem código
-            if "SEM_MUNICIPIO" in selected_municipios:
-                mask_muni |= filtered_df["SEQ_MUNICIPIO3"].isna()
-
-            filtered_df = filtered_df[mask_muni]
-
+            filtered_df = filtrarMunicipio(selected_municipios,filtered_df)
+            
     # --- Filtro de Motivo do Alvará (multiselect) ---
     motivo_options = []
     if "SEQ_MOTIVO_EXPEDICAO_ALVARA" in df.columns:
-        motivos_presentes = (
-            df["SEQ_MOTIVO_EXPEDICAO_ALVARA"]
-            .drop_duplicates()
-            .dropna()
-            .sort_values()
-            .tolist()
-        )
-        motivo_options = motivos_presentes.copy()
-        has_null_motivo = df["SEQ_MOTIVO_EXPEDICAO_ALVARA"].isna().any()
-        if has_null_motivo:
-            motivo_options.append("SEM_MOTIVO")
-
+        motivos_presentes,motivo_options=gerarFiltroMotivo(df)
     selected_motivos = st.sidebar.multiselect(
         "Motivo do Alvará",
         options=motivo_options,
         default=motivo_options,  # todos selecionados por padrão (incluindo SEM_MOTIVO se existir)
         format_func=lambda x: format_motivo_opt(x),
     )
-
     if selected_motivos and "SEQ_MOTIVO_EXPEDICAO_ALVARA" in filtered_df.columns:
-        mask_motivo = pd.Series(False, index=filtered_df.index)
+        filtered_df=filtrarMotivo(selected_motivos,filtered_df)
 
-        motivo_numeric = [m for m in selected_motivos if not isinstance(m, str)]
-        if motivo_numeric:
-            mask_motivo |= filtered_df["SEQ_MOTIVO_EXPEDICAO_ALVARA"].isin(motivo_numeric)
-
-        if "SEM_MOTIVO" in selected_motivos:
-            mask_motivo |= filtered_df["SEQ_MOTIVO_EXPEDICAO_ALVARA"].isna()
-
-        filtered_df = filtered_df[mask_motivo]
+# --- Filtro de Motivo do Status (multiselect) ---
+    status_options = []
+    if "SEQ_STATUS" in df.columns:
+        status_presentes,status_options=gerarFiltroStatus(df)
+        selected_status = st.sidebar.multiselect(
+        "Status Pessoa",
+        options=status_options,
+        default=status_options,  # todos selecionados por padrão (incluindo SEM_STATUS se existir)
+        format_func=lambda x: format_status_opt(x),
+    )
+    if selected_status :
+        filtered_df=filtrarStatus(selected_status,filtered_df)
+     
 
     # ==========================
     # Layout principal - Abas
